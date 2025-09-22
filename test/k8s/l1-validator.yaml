@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: l1-validator
+  namespace: default
+spec:
+  serviceName: l1-validator
+  replicas: 1
+  selector:
+    matchLabels:
+      app: l1-validator
+  template:
+    metadata:
+      labels:
+        app: l1-validator
+    spec:
+      containers:
+      - name: l1-validator
+        image: gcr.io/prysmaticlabs/prysm/validator:v4.1.1
+        command:
+        args:
+        - --beacon-rpc-provider=l1-beacon-chain:4000
+        - --datadir=/consensus/validatordata
+        - --accept-terms-of-use
+        - --interop-num-validators=4
+        - --interop-start-index=0
+        - --chain-config-file=/chain-config/config.yml
+        - --verbosity=info
+        volumeMounts:
+        - name: datadir
+          mountPath: /consensus
+          subPath: consensus
+        - name: chain-config-vol
+          mountPath: /chain-config
+
+      volumes:
+      - name: chain-config-vol
+        configMap:
+          name: chain-config
+          items:
+          - key: config.yml
+            path: config.yml
+      - name: datadir
+        persistentVolumeClaim:
+          claimName: datadir

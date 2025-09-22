@@ -15,6 +15,23 @@ spec:
         app: l1-beacon-chain
     spec:
       containers:
+      - name: test
+        image: nginx:1.25
+        volumeMounts:
+        - name: datadir
+          mountPath: /execution
+          subPath: execution
+          readOnly: false
+        - name: datadir
+          mountPath: /consensus
+          subPath: consensus
+          readOnly: false
+        - name: jwtsecret-vol
+          mountPath: /execution/jwtsecret
+          subPath: jwtsecret
+        - name: chain-config-vol
+          mountPath: /chain-config
+
       - name: l1-beacon-chain
         image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
         command:
@@ -60,6 +77,7 @@ spec:
           subPath: jwtsecret
         - name: chain-config-vol
           mountPath: /chain-config
+
       volumes:
       - name: jwtsecret-vol
         secret:
@@ -73,3 +91,27 @@ spec:
       - name: datadir
         persistentVolumeClaim:
           claimName: datadir
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: l1-beacon-chain
+  labels:
+    app: l1-beacon-chain
+spec:
+  type: ClusterIP
+  ports:
+  - name: beacon-rest-api
+    port: 4000
+    targetPort: 4000
+    protocol: TCP
+  - name: beacon-grpc-gateway
+    port: 3500
+    targetPort: 3500
+    protocol: TCP
+  - name: beacon-p2p
+    port: 13000
+    targetPort: 13000
+    protocol: TCP
+  selector:
+    app: l1-beacon-chain
