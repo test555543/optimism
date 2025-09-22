@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: l1-beacon-chain
+  namespace: default
+spec:
+  serviceName: l1-beacon-chain
+  replicas: 1
+  selector:
+    matchLabels:
+      app: l1-beacon-chain
+  template:
+    metadata:
+      labels:
+        app: l1-beacon-chain
+    spec:
+      containers:
+      - name: l1-beacon-chain
+        image: gcr.io/prysmaticlabs/prysm/beacon-chain:v4.1.1
+        command:
+        - /app/cmd/beacon-chain/beacon-chain
+        args:
+        - --datadir=/consensus/beacondata
+        - --min-sync-peers=0
+        - --genesis-state=/consensus/genesis.ssz
+        - --bootstrap-node=
+        - --interop-eth1data-votes
+        - --chain-config-file=/chain-config/config.yml
+        - --contract-deployment-block=0
+        - --chain-id=1337
+        - --rpc-host=0.0.0.0
+        - --grpc-gateway-host=0.0.0.0
+        - --execution-endpoint=http://l1-geth:8551
+        - --accept-terms-of-use
+        - --jwt-secret=/execution/jwtsecret
+        - --suggested-fee-recipient=0x123463a4b065722e99115d6c222f267d9cabb524
+        - --minimum-peers-per-subnet=0
+        - --enable-debug-rpc-endpoints
+        - --verbosity=info
+        ports:
+        - containerPort: 4000
+          name: p2p
+        - containerPort: 3500
+          name: rpc
+        - containerPort: 8080
+          name: gateway
+        - containerPort: 6060
+          name: pprof
+        - containerPort: 9090
+          name: metrics
+        volumeMounts:
+        - name: datadir
+          mountPath: /consensus
+          subPath: consensus
+        - name: datadir
+          mountPath: /execution
+          subPath: execution
+        - name: jwtsecret-vol
+          mountPath: /execution/jwtsecret
+          subPath: jwtsecret
+        - name: chain-config-vol
+          mountPath: /chain-config
+      volumes:
+      - name: jwtsecret-vol
+        secret:
+          secretName: jwtsecret
+      - name: chain-config-vol
+        configMap:
+          name: chain-config
+          items:
+          - key: config.yml
+            path: config.yml
+      - name: datadir
+        persistentVolumeClaim:
+          claimName: datadir
