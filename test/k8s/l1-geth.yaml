@@ -1,4 +1,16 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: datadir
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: keystore-config
@@ -213,9 +225,11 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
           readOnly: false
         - name: datadir
           mountPath: /consensus
+          subPath: consensus
           readOnly: false
         - name: chain-config-vol
           mountPath: /chain-config
@@ -236,6 +250,7 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
           readOnly: false
 
       - name: l1-geth-genesis
@@ -249,6 +264,7 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
           readOnly: false
 
       - name: copy-keystore
@@ -263,6 +279,7 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
           readOnly: false
         - name: keystore-config-vol
           mountPath: /tmp/keystore
@@ -274,6 +291,11 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
+          readOnly: false
+        - name: datadir
+          mountPath: /consensus
+          subPath: consensus
           readOnly: false
         - name: jwtsecret-vol
           mountPath: /execution/jwtsecret
@@ -337,6 +359,7 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /execution
+          subPath: execution
           readOnly: false
         - name: jwtsecret-vol
           mountPath: /execution/jwtsecret
@@ -375,18 +398,9 @@ spec:
           items:
           - key: keystore.json
             path: UTC--2022-08-19T17-38-31.257380510Z--123463a4b065722e99115d6c222f267d9cabb524
-
-  volumeClaimTemplates:
-  - metadata:
-      name: datadir
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      storageClassName: standard
-      resources:
-        requests:
-          storage: 20Gi
-
+      - name: datadir
+        persistentVolumeClaim:
+          claimName: datadir
 ---
 apiVersion: v1
 kind: Service
