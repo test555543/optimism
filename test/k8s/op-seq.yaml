@@ -1,0 +1,227 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jwt
+  namespace: default
+data:
+  jwt.txt: |
+    0c00f14247582fcd3c837311148cda1f56e7c2caa42fb1ba8a3cc7843603846e
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: op-seq
+  namespace: default
+spec:
+  serviceName: op-seq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: op-seq
+  template:
+    metadata:
+      labels:
+        app: op-seq
+    spec:
+      initContainers:
+      # NOTE: My understanding is that the data generated
+      # by 3-op-init.sh is the same for all the op seqs.
+      # So just reuse this process for new replica.
+      - name: copy-over-data
+        image: "alpine:3.18"
+        command: ["/bin/sh"]
+        args:
+        - "-c"
+        - |
+          echo "Copying over data..."
+          ls /data
+          cp /data/rollup.json /datadir/rollup.json
+          cp -rfv /data/op-geth-seq /datadir
+        volumeMounts:
+        - name: persistent-storage
+          mountPath: /data
+        - name: datadir
+          mountPath: /datadir
+          readOnly: false
+
+      containers:
+      - name: op-geth
+        image: op-geth:v1.101511.0-patch
+        command:
+        - geth
+        args:
+        - --datadir
+        - /datadir/op-geth-seq
+        - --db.engine=pebble
+        - --http
+        - --http.corsdomain=*
+        - --http.vhosts=*
+        - --http.port=8545
+        - --http.addr=0.0.0.0
+        - --http.api=web3,debug,eth,txpool,net,engine,miner
+        - --ws
+        - --ws.addr=0.0.0.0
+        - --ws.port=7546
+        - --ws.origins=*
+        - --ws.api=debug,eth,txpool,net,engine
+        - --syncmode=full
+        - --gcmode=archive
+        - --nodiscover
+        - --maxpeers=0
+        - --networkid=901
+        - --authrpc.vhosts=*
+        - --authrpc.addr=0.0.0.0
+        - --authrpc.port=8552
+        - --authrpc.jwtsecret=/jwt.txt
+        - --rollup.disabletxpoolgossip=true
+        ports:
+        - containerPort: 8545
+          name: http
+        - containerPort: 7546
+          name: websocket
+        - containerPort: 8552
+          name: auth-rpc
+        - containerPort: 30303
+          protocol: TCP
+          name: tcp-p2p-geth
+        - containerPort: 30303
+          protocol: UDP
+          name: udp-p2p-geth
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: datadir
+          mountPath: /datadir
+          readOnly: false
+        - name: config-jwt
+          mountPath: /jwt.txt
+          subPath: jwt.txt
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          tcpSocket:
+            port: 8545
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8545
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+      - name: op-node
+        image: op-stack:v1.13.4
+        command:
+        - /app/op-node/bin/op-node
+        args:
+        - --log.level=debug
+        - --l2=http://127.0.0.0:8552 # same pod
+        - --l2.jwt-secret=/jwt.txt
+        - --sequencer.enabled
+        - --sequencer.l1-confs=5
+        - --verifier.l1-confs=1
+        - --rollup.config=/datadir/rollup.json
+        - --rpc.addr=0.0.0.0
+        - --p2p.listen.tcp=9223
+        - --p2p.listen.udp=9223
+        - --p2p.priv.raw=e054b5748fb29a82994ea170af9e6094a163a0d11308dea91a38744c4e7c94da
+        - --p2p.peerstore.path=/data/p2p/opnode_peerstore_db
+        - --p2p.discovery.path=/data/p2p/opnode_discovery_db
+        - --p2p.no-discovery
+        - --rpc.enable-admin
+        - --p2p.sequencer.key=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+        - --l1=http://l1-geth:8545
+        - --l1.beacon=http://l1-beacon-chain:3500
+        - --l1.rpckind=standard
+        - --safedb.path=/data/safedb
+        ports:
+        - containerPort: 9545
+          name: rpc
+        - containerPort: 7070
+          name: unused
+        - containerPort: 9223
+          protocol: TCP
+          name: tcp-p2p-node
+        - containerPort: 9223
+          protocol: UDP
+          name: udp-p2p-node
+        volumeMounts:
+        - name: safedb
+          mountPath: /data/safedb
+          readOnly: false
+        - name: p2p
+          mountPath: /data/p2p
+        - name: config-jwt
+          mountPath: /jwt.txt
+          subPath: jwt.txt
+          readOnly: false
+        - name: datadir
+          mountPath: /datadir
+          readOnly: false
+        livenessProbe:
+          tcpSocket:
+            port: 9545
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 9545
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+      # Shared across containers
+      volumes:
+      - name: config-jwt
+        configMap:
+          name: jwt
+          defaultMode: 0644
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: source-init-data
+
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 4Gi
+  - metadata:
+      name: safedb
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 4Gi
+  - metadata:
+      name: p2p
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 4Gi

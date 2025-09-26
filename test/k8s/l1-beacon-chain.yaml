@@ -54,6 +54,11 @@ spec:
         - --minimum-peers-per-subnet=0
         - --enable-debug-rpc-endpoints
         - --verbosity=info
+        # According to AI (stops the panic)
+        - --clear-db
+        - --force-clear-db
+        - --disable-monitoring
+        - --genesis-beacon-api-url=
         ports:
         - containerPort: 4000
           name: p2p
@@ -101,11 +106,11 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - name: beacon-rest-api
+  - name: beacon-grpc
     port: 4000
     targetPort: 4000
     protocol: TCP
-  - name: beacon-grpc-gateway
+  - name: beacon-rest
     port: 3500
     targetPort: 3500
     protocol: TCP

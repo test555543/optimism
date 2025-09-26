@@ -1,0 +1,39 @@
+# 1) rollup.json for op-seq
+# 2) data/op-geth-seq for op-geth-seq
+#
+# NOTE: you may need to repeat each process for each new
+# sequencer (when using op-conductor)
+# Use kubectl to upload file to PV of "busybox" pod.
+# This pod serves to allow source PV to be mounted.
+#
+# Afterwards, in op-seq setup initContainer to copy
+# the file(s) into destination PV.
+#
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: source-init-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: intermediate-pod
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    volumeMounts:
+    - name: persistent-storage
+      mountPath: /data
+  volumes:
+  - name: persistent-storage
+    persistentVolumeClaim:
+      claimName: source-init-data
+  restartPolicy: Never
