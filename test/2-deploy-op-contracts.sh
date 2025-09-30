@@ -25,10 +25,13 @@ TRANSACTOR_DEPLOY_OUTPUT=$(docker run --rm \
   -w /app/packages/contracts-bedrock \
   "${OP_CONTRACTS_IMAGE_TAG}" \
   forge create --json --broadcast \
-    --rpc-url $L1_RPC_URL_IN_DOCKER \
-    --private-key $DEPLOYER_PRIVATE_KEY \
-    src/periphery/Transactor.sol:Transactor.0.8.30 \
-    --constructor-args $ADMIN_OWNER_ADDRESS)
+  --rpc-url $L1_RPC_URL_IN_DOCKER \
+  --private-key $DEPLOYER_PRIVATE_KEY \
+  src/periphery/Transactor.sol:Transactor.0.8.30 \
+  --constructor-args $ADMIN_OWNER_ADDRESS)
+
+# echo "FINISHED"
+# exit 0
 
 # Extract contract address from deployment output
 TRANSACTOR_ADDRESS=$(echo "$TRANSACTOR_DEPLOY_OUTPUT" | jq -r '.deployedTo // empty')

@@ -1,6 +1,7 @@
 networks:
   default:
     name: ${DOCKER_NETWORK:-dev-op}
+    external: true
 
 services:
   l1-geth-remove-db:
@@ -172,18 +173,36 @@ services:
     volumes:
       - ./data/op-geth-seq:/datadir
       - ./config-op/jwt.txt:/jwt.txt
-      - ./config-op/test.seq.config.toml:/config.toml
     ports:
-      - "8123:8545"
+      - "8123:8545" # NOTE:
       - "7546:7546"
       - "8552:8552"
-      - "30303:30303"
-      - "30303:30303/udp"
+      # - "30303:30303"
+      # - "30303:30303/udp"
     command:
-      - --datadir=/datadir
+      - --datadir
+      - /datadir
       - --db.engine=${DB_ENGINE}
-      - --config=/config.toml
+      - --http
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --http.port=8545
+      - --http.addr=0.0.0.0
+      - --http.api=web3,debug,eth,txpool,net,engine,miner
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=7546
+      - --ws.origins=*
+      - --ws.api=debug,eth,txpool,net,engine
+      - --syncmode=full
       - --gcmode=archive
+      - --nodiscover
+      - --maxpeers=0
+      - --networkid=901
+      - --authrpc.vhosts=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8552
+      - --authrpc.jwtsecret=/jwt.txt
       - --rollup.disabletxpoolgossip=false
 
   op-geth-rpc:
@@ -296,7 +315,7 @@ services:
       # Raft Config
       - --raft.server.id=conductor-1
       - --raft.storage.dir=/data/raft
-      - --raft.bootstrap=true
+      - --raft.bootstrap=true # NOTE: that's why this became leader
       - --consensus.addr=0.0.0.0
       - --consensus.port=50050
       - --consensus.advertised=op-conductor:50050
@@ -413,7 +432,7 @@ services:
       - ./data/op-geth-seq2:/datadir
       - ./config-op/jwt.txt:/jwt.txt
     ports:
-      - "8223:8545"
+      - "8223:8545" # NOTE:
     command:
       - --datadir=/datadir
       - --db.engine=${DB_ENGINE}

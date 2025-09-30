@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e
 source .env
+
 docker compose up -d l1-validator
+# TODO: need to setup l1-validator
+# it seems start l1-beacon-chain first, then l1-validator works
 
 sleep 3
 
@@ -12,11 +15,11 @@ OP_CHALLENGER_ADDR=$(cast wallet a $OP_CHALLENGER_PRIVATE_KEY)
 
 # Wait for L1 node to finish syncing
 while [[ "$(cast rpc eth_syncing --rpc-url $L1_RPC_URL)" != "false" ]]; do
-    echo "Waiting for node to finish syncing..."
-    sleep 1
+  echo "Waiting for node to finish syncing..."
+  sleep 1
 done
 
 # Fund all actor addresses
 for addr in $OP_BATCHER_ADDR $OP_PROPOSER_ADDR $OP_CHALLENGER_ADDR; do
-    cast send --private-key $RICH_L1_PRIVATE_KEY --value 100ether $addr --legacy --rpc-url $L1_RPC_URL
+  cast send --private-key $RICH_L1_PRIVATE_KEY --value 100ether $addr --legacy --rpc-url $L1_RPC_URL
 done

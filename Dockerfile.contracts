@@ -9,7 +9,7 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 # Install foundry
-RUN curl -L https://foundry.paradigm.xyz | bash && \
+RUN curl -L https://foundry.paradigm.xyz | bash && \ # TODO: whitelist for pipeline?
     /root/.foundry/bin/foundryup && \
     mv /root/.foundry/bin/* /usr/local/bin/ && \
     rm -rf /root/.foundry
