@@ -7,9 +7,6 @@ data:
   jwt.txt: |
     0c00f14247582fcd3c837311148cda1f56e7c2caa42fb1ba8a3cc7843603846e
 ---
-# TODO:
-# For non-leader op-seq, we need set:
-# "--sequencer.enabled" and "--sequencer.stopped"
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -27,9 +24,6 @@ spec:
         app: op-seq
     spec:
       initContainers:
-      # NOTE: My understanding is that the data generated
-      # by 3-op-init.sh is the same for all the op seqs.
-      # So just reuse this process for new replica.
       - name: copy-over-data
         image: "alpine:3.18"
         command: ["/bin/sh"]
@@ -39,7 +33,7 @@ spec:
           echo "Copying over data..."
           ls /data
           cp /data/rollup.json /datadir/rollup.json
-          cp -rfv /data/op-geth-seq /datadir
+          # [ -d /data/op-geth-seq ] && cp -rfv /data/op-geth-seq /datadir
         volumeMounts:
         - name: persistent-storage
           mountPath: /data
@@ -124,7 +118,6 @@ spec:
           periodSeconds: 5
           successThreshold: 1
           failureThreshold: 3
-        terminationGracePeriodSeconds: 60
 
       - name: op-node
         image: op-stack:v1.13.4
@@ -132,7 +125,7 @@ spec:
         - /app/op-node/bin/op-node
         args:
         - --log.level=debug
-        - --l2=http://127.0.0.0:8552 # same pod
+        - --l2=http://127.0.0.0:8552
         - --l2.jwt-secret=/jwt.txt
         - --sequencer.enabled
         # NOTE: we will start op-seq in stopped state, then let op-conductor
@@ -194,7 +187,6 @@ spec:
           periodSeconds: 5
           successThreshold: 1
           failureThreshold: 3
-        terminationGracePeriodSeconds: 60
 
       - name: op-conductor
         image: op-stack:v1.13.4
@@ -210,24 +202,27 @@ spec:
             BOOTSTRAP="false"
           fi
 
-          /app/op-conductor/bin/op-conductor
-            --raft.bootstrap=$BOOTSTRAP # NOTE: you must init a container as leader otherwise others will stall.
-            --raft.heartbeat-timeout=1000ms
-            --raft.lease-timeout=500ms
-            --log.level=debug
-            --node.rpc=http://127.0.0.1:9545
-            --execution.rpc=http://127.0.0.1:8545
-            --raft.server.id=$(CONDUCTOR_ID)
-            --raft.storage.dir=/data/raft
-            --consensus.addr=0.0.0.0
-            --consensus.port=50050
-            --consensus.advertised=$(POD_NAME).op-sequencer-headless.default.svc.cluster.local:50050
-            --rpc.addr=0.0.0.0
-            --rpc.port=8547
-            --rpc.enable-proxy=true
-            --healthcheck.interval=1
-            --healthcheck.unsafe-interval=3
-            --healthcheck.min-peer-count=1
+          echo "BOOTSTRAP: ${BOOTSTRAP}"
+
+          # NOTE: you must init a container as leader otherwise others will stall.
+          /app/op-conductor/bin/op-conductor \
+            --raft.bootstrap=$BOOTSTRAP \
+            --raft.heartbeat-timeout=1000ms \
+            --raft.lease-timeout=500ms \
+            --log.level=debug \
+            --node.rpc=http://127.0.0.1:9545 \
+            --execution.rpc=http://127.0.0.1:8545 \
+            --raft.server.id=$(CONDUCTOR_ID) \
+            --raft.storage.dir=/data/raft \
+            --consensus.addr=0.0.0.0 \
+            --consensus.port=50050 \
+            --consensus.advertised=$(POD_NAME).op-sequencer-headless.default.svc.cluster.local:50050 \
+            --rpc.addr=0.0.0.0 \
+            --rpc.port=8547 \
+            --rpc.enable-proxy=true \
+            --healthcheck.interval=1 \
+            --healthcheck.unsafe-interval=3 \
+            --healthcheck.min-peer-count=1 \
             --rollup.config=/datadir/rollup.json
         volumeMounts:
         - name: datadir
@@ -240,7 +235,6 @@ spec:
               fieldPath: metadata.name
         - name: CONDUCTOR_ID
           value: "conductor-$(POD_NAME)"
-        terminationGracePeriodSeconds: 60
 
       # Shared across containers
       volumes:
