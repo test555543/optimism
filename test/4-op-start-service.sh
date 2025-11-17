@@ -14,8 +14,7 @@ sed_inplace() {
 }
 
 PWD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$PWD_DIR")"
-SCRIPTS_DIR=$ROOT_DIR/test/scripts
+SCRIPTS_DIR=$PWD_DIR/scripts
 
 if [ "$SEQ_TYPE" = "geth" ]; then
     # Start op-geth-seq to get the block hash at FORK_BLOCK+1
@@ -59,10 +58,8 @@ jq ".genesis.l2.hash = \"$NEW_BLOCK_HASH\"" config-op/rollup.json > config-op/ro
 mv config-op/rollup.json.tmp config-op/rollup.json
 
 if [ "$CONDUCTOR_ENABLED" = "true" ]; then
-    docker compose up -d op-conductor
-    docker compose up -d op-conductor2
-    docker compose up -d op-conductor3
-    sleep 3
+    docker compose up -d op-conductor op-conductor2 op-conductor3
+    sleep 10
     $SCRIPTS_DIR/active-sequencer.sh
 else
     docker compose up -d op-seq
